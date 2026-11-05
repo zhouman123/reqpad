@@ -51,22 +51,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func buildWindow() {
-        let web = WKWebView(frame: .zero)
+        let contentSize = NSSize(width: 1180, height: 820)
+        // The web view must already carry a real frame: assigning a zero-sized
+        // contentView makes AppKit collapse the window to the title bar.
+        let web = WKWebView(frame: NSRect(origin: .zero, size: contentSize))
         web.autoresizingMask = [.width, .height]
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1180, height: 820),
+            contentRect: NSRect(origin: .zero, size: contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         win.title = "reqpad"
-        // A shrunken window hides the whole UI, so keep it usable and always
-        // start at a sane size instead of whatever frame was last dragged to.
-        win.minSize = NSSize(width: 900, height: 560)
-        win.setContentSize(NSSize(width: 1180, height: 820))
-        win.center()
         win.contentView = web
+        win.minSize = NSSize(width: 900, height: 560)
+        win.setContentSize(contentSize)
+        win.center()
         win.delegate = self
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
