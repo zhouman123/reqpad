@@ -68,17 +68,12 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.stab {
-  border: 0;
-  background: none;
-  padding: 3px 2px;
+.sidebar-title {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
+  letter-spacing: 0.3px;
 }
-.stab.active { color: var(--text); border-bottom-color: var(--accent); }
 
 .side-body { overflow-y: auto; flex: 1; min-height: 0; }
 
@@ -121,22 +116,7 @@ body {
 .collection .item .n small { color: var(--muted); font-family: var(--mono); font-size: 11px; }
 .collection .empty { color: var(--muted); font-size: 12px; padding: 10px 8px; }
 
-.history { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
 
-.history li {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.history li:hover { background: #f0f0f2; }
-.history .m { font-size: 11px; font-weight: 700; color: var(--muted); flex: none; width: 44px; }
-.history .u { font-family: var(--mono); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.history .empty { color: var(--muted); cursor: default; }
 
 .workspace { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 

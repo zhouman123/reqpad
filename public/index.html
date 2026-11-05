@@ -17,18 +17,13 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="sidebar-head">
-        <button class="stab active" data-side="collections" type="button">集合</button>
-        <button class="stab" data-side="history" type="button">历史</button>
+        <span class="sidebar-title">集合</span>
         <span class="spacer"></span>
         <button id="importBtn" class="link-btn" type="button">导入</button>
-        <button id="clearHistory" class="link-btn hidden" type="button">清空</button>
       </div>
       <input id="importFile" type="file" accept=".json,application/json" multiple hidden />
-      <div class="side-body" data-side-pane="collections">
+      <div class="side-body">
         <ul id="collectionList" class="collection"></ul>
-      </div>
-      <div class="side-body hidden" data-side-pane="history">
-        <ul id="historyList" class="history"></ul>
       </div>
     </aside>
 

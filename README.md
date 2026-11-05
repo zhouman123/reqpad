@@ -49,13 +49,12 @@ Windows 双击 `start.bat`；macOS 双击 `start.command`（首次可能要在�
   - `binary` — 单个文件按原始字节发
 
   GET / HEAD 无论选哪种都不发 body；手写了 Content-Type 就以你写的为准。
-- 左侧历史/集合两个标签页：历史存最近 50 条；集合点一条直接回填方法、URL、Headers、Body。
+- 左侧集合树：按集合 → 文件夹（按名字排序）分组，点一条直接回填方法、URL、Headers、Body。
 - **导入**：支持 Postman 的 `backup-*.json`（App 内自动备份）和标准 `.postman_collection.json`（v2.x 导出），
   同集合重复导入只补新请求。环境变量一并导入，右上角可选，`{{baseUrl}}` 这类占位符发送前替换。
 - 响应区：状态码（带颜色）、耗时、大小、跳转次数；Body 自动美化 JSON，可切原始文本；Headers 看原始响应头。
-- 左侧历史：最近 50 条，同 method+url 只留一条，点一条回填。
 
-历史存在 `~/.reqpad/history.json`，换浏览器、清缓存、重启进程都还在。
+集合与环境存在 `~/.reqpad/collections.json` 和 `environments.json`，换浏览器、清缓存、重启进程都还在。
 
 ## 实现要点
 
@@ -77,7 +76,7 @@ POST 同上，body {"hello":"世界"}          -> 200，回显 body 与 content-
 GET  /gzip                                -> 200，解压后是明文 JSON
 GET  /redirect                            -> 200，redirects: [{302 → /echo}]
 GET  file:///etc/passwd                   -> 400 unsupported scheme
-无头浏览器点击 Send                        -> 200 OK / 17ms / 226B / 5 个响应头 / 历史落 1 条
+无头浏览器点击 Send                        -> 200 OK / 17ms / 226B / 5 个响应头
 Params: ?a=1&b=2 → 2 行；取消 a → 服务端收到 /echo?b=2；新增 c=3 → URL 变 ?b=2&c=3
 Body urlencoded   -> 服务端收到 a=1&b=2，Content-Type 正确
 Body raw(XML)     -> 服务端收到 <a>1</a> + application/xml
@@ -85,7 +84,6 @@ Body form-data    -> 服务端收到 multipart，含 name="name" 与 boundary
 Body binary       -> content-length 与文件字节数一致
 Body GET+body     -> 服务端收不到 body，残留 content-length 被清掉
 导入 Postman 备份（2 份）                  -> 18 集合 / 71 请求 / 2 环境，点击可回填
-历史写入后重启进程                        -> 仍然读得到（落盘，不在内存）
 macOS 应用正常退出                         -> 无残留 node 子进程
 ```
 

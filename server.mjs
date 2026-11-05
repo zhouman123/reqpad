@@ -15,11 +15,8 @@ const PORT = Number(process.env.PORT || 4599);
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_REDIRECTS = 10;
 const MAX_REQUEST_BYTES = 10 * 1024 * 1024;
-// History lives in a file, not in browser storage: it survives a browser
-// change, a cleared cache, and (later) the native WKWebView wrapper.
-const HISTORY_FILE = join(homedir(), '.reqpad', 'history.json');
-const LEGACY_HISTORY_FILE = join(homedir(), '.postman-lite', 'history.json');
-const HISTORY_LIMIT = 50;
+// Collections and environments live in files so they survive a browser
+// change or a cleared cache.
 const COLLECTIONS_FILE = join(homedir(), '.reqpad', 'collections.json');
 const ENVIRONMENTS_FILE = join(homedir(), '.reqpad', 'environments.json');
 
@@ -61,72 +58,6 @@ function readRequestBody(req) {
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
-}
-
-// ---- history: read/write a JSON file so it outlives the browser ----
-
-async function readHistory() {
-  try {
-    const parsed = JSON.parse(await readFile(HISTORY_FILE, 'utf8'));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    // First run after the rename: seed from the previous location, if any.
-    try {
-      const legacy = JSON.parse(await readFile(LEGACY_HISTORY_FILE, 'utf8'));
-      if (Array.isArray(legacy) && legacy.length) {
-        await writeHistory(legacy);
-        return legacy;
-      }
-    } catch {
-      // No legacy file: start empty.
-    }
-    return [];
-  }
-}
-
-async function writeHistory(items) {
-  await mkdir(dirname(HISTORY_FILE), { recursive: true });
-  const tmp = `${HISTORY_FILE}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify(items, null, 2));
-  await rename(tmp, HISTORY_FILE);
-}
-
-function cleanEntry(raw) {
-  const method = String(raw?.method || '').toUpperCase().slice(0, 16);
-  const url = String(raw?.url || '').slice(0, 2048);
-  if (!/^[A-Z]+$/.test(method) || !url) return null;
-  const headers = {};
-  for (const [key, value] of Object.entries(raw?.headers || {}).slice(0, 100)) {
-    if (typeof key === 'string' && key) headers[key.slice(0, 256)] = String(value).slice(0, 4096);
-  }
-  const bodyType = String(raw?.bodyType || 'none').slice(0, 16);
-  const form = Array.isArray(raw?.form)
-    ? raw.form.slice(0, 100).map((row) => ({
-      key: String(row?.key || '').slice(0, 256),
-      type: row?.type === 'file' ? 'file' : 'text',
-      value: String(row?.value ?? '').slice(0, 10_000),
-    }))
-    : [];
-  // File bytes are never persisted: history is a log, not a file store.
-  return {
-    method,
-    url,
-    headers,
-    bodyType,
-    body: String(raw?.body ?? '').slice(0, 100_000),
-    form,
-    at: Date.now(),
-  };
-}
-
-async function pushHistory(raw) {
-  const entry = cleanEntry(raw);
-  if (!entry) return readHistory();
-  const items = (await readHistory()).filter((it) => !(it.method === entry.method && it.url === entry.url));
-  items.unshift(entry);
-  const trimmed = items.slice(0, HISTORY_LIMIT);
-  await writeHistory(trimmed);
-  return trimmed;
 }
 
 // ---- collections: imported from Postman, kept as a plain JSON file ----
@@ -559,28 +490,6 @@ const server = createServer(async (req, res) => {
   }
   if (req.url === '/api/health') {
     sendJson(res, 200, { ok: true, port: PORT });
-    return;
-  }
-  if (req.url === '/api/history') {
-    try {
-      if (req.method === 'GET') {
-        sendJson(res, 200, { items: await readHistory() });
-        return;
-      }
-      if (req.method === 'POST') {
-        const payload = JSON.parse((await readRequestBody(req)).toString('utf8') || '{}');
-        sendJson(res, 200, { items: await pushHistory(payload) });
-        return;
-      }
-      if (req.method === 'DELETE') {
-        await writeHistory([]);
-        sendJson(res, 200, { items: [] });
-        return;
-      }
-      sendJson(res, 405, { error: 'method not allowed' });
-    } catch (error) {
-      sendJson(res, 400, { error: error.message });
-    }
     return;
   }
   if (req.url === '/api/collections/import' && req.method === 'POST') {

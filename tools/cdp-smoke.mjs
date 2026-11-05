@@ -85,7 +85,6 @@ try {
         pillClass: pill.className,
         meta: document.getElementById('meta').textContent,
         respHeaderCount: document.getElementById('respHeaderCount').textContent,
-        historyCount: document.querySelectorAll('#historyList li').length,
         bodyHead: body.slice(0, 160),
         echoedMethod: (() => { try { return JSON.parse(body).method; } catch { return null; } })(),
       };
@@ -95,7 +94,6 @@ try {
   console.log(JSON.stringify(rendered, null, 2));
   const ok = rendered.status.startsWith('200') &&
     rendered.echoedMethod === 'GET' &&
-    rendered.historyCount >= 1 &&
     Number(rendered.respHeaderCount) > 0;
   console.log(ok ? '\nSMOKE OK' : '\nSMOKE FAILED');
   process.exitCode = ok ? 0 : 1;

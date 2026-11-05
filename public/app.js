@@ -24,15 +24,12 @@ const els = {
   respHeaderCount: document.getElementById('respHeaderCount'),
   pretty: document.getElementById('pretty'),
   copy: document.getElementById('copy'),
-  historyList: document.getElementById('historyList'),
-  clearHistory: document.getElementById('clearHistory'),
   collectionList: document.getElementById('collectionList'),
   importBtn: document.getElementById('importBtn'),
   importFile: document.getElementById('importFile'),
   envSelect: document.getElementById('envSelect'),
 };
 
-const HISTORY_KEY = 'reqpad.history';
 let lastResponseText = '';
 let prettyOn = true;
 
@@ -493,18 +490,6 @@ async function send() {
     } else {
       showBody(data.body);
     }
-
-    pushHistory({
-      method,
-      url,
-      headers: readHeaders(),
-      bodyType: bodyPayload.bodyType,
-      body: els.body.value,
-      form: bodyPayload.bodyType === 'formdata'
-        ? (bodyPayload.form || []).map((row) => ({ key: row.key, type: row.type, value: row.value ?? '' }))
-        : [],
-      at: Date.now(),
-    });
   } catch (error) {
     els.statusPill.className = 'pill error';
     els.statusPill.textContent = '失败';
@@ -513,110 +498,6 @@ async function send() {
   } finally {
     els.send.disabled = false;
     els.send.textContent = 'Send';
-  }
-}
-
-/* ---------- history ---------- */
-// Source of truth is the server's JSON file; localStorage is only a fallback
-// for when the page is opened without the backend (e.g. a file:// wrapper).
-let history = [];
-
-function mirrorHistory(items) {
-  try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, 50)));
-  } catch {
-    // Storage can be unavailable (private mode); the file is still authoritative.
-  }
-}
-
-async function loadHistory() {
-  try {
-    const res = await fetch('/api/history');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data.items)) return data.items;
-    }
-  } catch {
-    // fall through to the local mirror
-  }
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-async function refreshHistory() {
-  history = await loadHistory();
-  renderHistory();
-}
-
-async function pushHistory(entry) {
-  try {
-    const res = await fetch('/api/history', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(entry),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      history = Array.isArray(data.items) ? data.items : history;
-      mirrorHistory(history);
-      renderHistory();
-      return;
-    }
-  } catch {
-    // fall through to the local mirror
-  }
-  history = [entry, ...history.filter((it) => !(it.method === entry.method && it.url === entry.url))].slice(0, 50);
-  mirrorHistory(history);
-  renderHistory();
-}
-
-function renderHistory() {
-  const items = history;
-  els.historyList.replaceChildren();
-  if (!items.length) {
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = '还没有请求记录';
-    els.historyList.append(li);
-    return;
-  }
-  for (const item of items) {
-    const li = document.createElement('li');
-    const method = document.createElement('span');
-    method.className = 'm';
-    method.textContent = item.method;
-    const url = document.createElement('span');
-    url.className = 'u';
-    url.textContent = item.url;
-    url.title = item.url;
-    li.append(method, url);
-    li.addEventListener('click', () => {
-      els.method.value = item.method;
-      els.url.value = item.url;
-      els.body.value = item.body || '';
-      els.headerRows.replaceChildren();
-      const headers = Object.entries(item.headers || {});
-      if (headers.length) for (const [k, v] of headers) addHeaderRow(k, v);
-      else addHeaderRow();
-      syncHeaderCount();
-      syncParamsFromUrl();
-
-      // File bytes are never persisted, so a file row comes back empty on purpose.
-      const bodyType = item.bodyType || (item.body ? 'raw' : 'none');
-      setBodyType(bodyType);
-      els.formRows.replaceChildren();
-      for (const row of item.form || []) addFormRow(row.key, row.value || '', row.type || 'text');
-      els.urlRows.replaceChildren();
-      if (bodyType === 'urlencoded') {
-        for (const [k, v] of new URLSearchParams(item.body || '')) addTextRow(els.urlRows, k, v);
-      }
-      els.binFile.value = '';
-      els.binHint.textContent = '按文件原始字节发送，Content-Type 取文件类型。';
-    });
-    els.historyList.append(li);
   }
 }
 
@@ -676,35 +557,50 @@ function renderCollections() {
     els.collectionList.append(li);
     return;
   }
-  for (const collection of collections) {
-    const head = document.createElement('li');
-    head.className = 'group';
-    head.textContent = `${collection.name} · ${collection.items.length}`;
-    els.collectionList.append(head);
 
-    let lastFolder = null;
+  const addItem = (item) => {
+    const li = document.createElement('li');
+    li.className = 'item';
+    const method = document.createElement('span');
+    method.className = 'm';
+    method.textContent = item.method;
+    const name = document.createElement('span');
+    name.className = 'n';
+    name.textContent = item.name;
+    name.title = `${item.name}\n${item.url}`;
+    li.append(method, name);
+    li.addEventListener('click', () => applyItem(item));
+    els.collectionList.append(li);
+  };
+
+  const addGroup = (text, indent) => {
+    const li = document.createElement('li');
+    li.className = 'group';
+    if (indent) li.style.paddingLeft = '16px';
+    li.textContent = text;
+    els.collectionList.append(li);
+  };
+
+  for (const collection of collections) {
+    addGroup(`${collection.name} · ${collection.items.length}`, false);
+
+    // Group by folder first (folders sorted by name, which is how Postman
+    // numbers them), then the requests that sit outside any folder.
+    const folders = new Map();
+    const loose = [];
     for (const item of collection.items) {
-      if (item.folder && item.folder !== lastFolder) {
-        const folder = document.createElement('li');
-        folder.className = 'group';
-        folder.style.paddingLeft = '16px';
-        folder.textContent = item.folder;
-        els.collectionList.append(folder);
-        lastFolder = item.folder;
+      if (!item.folder) {
+        loose.push(item);
+        continue;
       }
-      const li = document.createElement('li');
-      li.className = 'item';
-      const method = document.createElement('span');
-      method.className = 'm';
-      method.textContent = item.method;
-      const name = document.createElement('span');
-      name.className = 'n';
-      name.textContent = item.name;
-      name.title = `${item.name}\n${item.url}`;
-      li.append(method, name);
-      li.addEventListener('click', () => applyItem(item));
-      els.collectionList.append(li);
+      if (!folders.has(item.folder)) folders.set(item.folder, []);
+      folders.get(item.folder).push(item);
     }
+    for (const [folderName, items] of [...folders].sort((a, b) => a[0].localeCompare(b[0], 'zh'))) {
+      addGroup(`${folderName} · ${items.length}`, true);
+      for (const item of items) addItem(item);
+    }
+    for (const item of loose) addItem(item);
   }
 }
 
@@ -718,7 +614,7 @@ async function refreshCollections() {
     renderEnvSelect();
     renderCollections();
   } catch {
-    // No backend: collections stay empty, history still works from localStorage.
+    // No backend: nothing to show until it is reachable.
   }
 }
 
@@ -794,15 +690,6 @@ els.importFile.addEventListener('change', async () => {
   await importFiles(els.importFile.files);
   els.importFile.value = '';
 });
-for (const tab of document.querySelectorAll('.stab')) {
-  tab.addEventListener('click', () => {
-    for (const other of document.querySelectorAll('.stab')) other.classList.toggle('active', other === tab);
-    for (const pane of document.querySelectorAll('[data-side-pane]')) {
-      pane.classList.toggle('hidden', pane.dataset.sidePane !== tab.dataset.side);
-    }
-    els.clearHistory.classList.toggle('hidden', tab.dataset.side !== 'history');
-  });
-}
 for (const radio of document.querySelectorAll('input[name="bodyType"]')) {
   radio.addEventListener('change', () => setBodyType(currentBodyType()));
 }
@@ -816,16 +703,6 @@ els.binFile.addEventListener('change', () => {
     : '按文件原始字节发送，Content-Type 取文件类型。';
 });
 els.send.addEventListener('click', send);
-els.clearHistory.addEventListener('click', async () => {
-  try {
-    await fetch('/api/history', { method: 'DELETE' });
-  } catch {
-    // server-less fallback below still clears the local mirror
-  }
-  history = [];
-  mirrorHistory(history);
-  renderHistory();
-});
 els.pretty.addEventListener('click', () => {
   prettyOn = !prettyOn;
   showBody(lastResponseText);
@@ -848,4 +725,3 @@ syncHeaderCount();
 syncParamsFromUrl();
 setBodyType('none');
 refreshCollections();
-refreshHistory();
