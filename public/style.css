@@ -299,6 +299,20 @@ body {
   font-family: inherit;
 }
 .find:focus { outline: 2px solid #ffd8c9; border-color: var(--accent); }
+.find-box { display: inline-flex; align-items: center; gap: 4px; }
+.find-btn {
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+.find-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
 .find-count { font-size: 11px; color: var(--muted); font-family: var(--mono); min-width: 42px; }
 .response-body mark { background: #ffe08a; color: inherit; border-radius: 2px; }
 .raw-bar select {

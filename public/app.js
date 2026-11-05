@@ -27,6 +27,10 @@ const els = {
   collectionList: document.getElementById('collectionList'),
   collSearch: document.getElementById('collSearch'),
   beautify: document.getElementById('beautify'),
+  bodyFindPrev: document.getElementById('bodyFindPrev'),
+  bodyFindNext: document.getElementById('bodyFindNext'),
+  respFindPrev: document.getElementById('respFindPrev'),
+  respFindNext: document.getElementById('respFindNext'),
   bodyFind: document.getElementById('bodyFind'),
   bodyFindCount: document.getElementById('bodyFindCount'),
   respFind: document.getElementById('respFind'),
@@ -471,40 +475,54 @@ function renderResponseBody() {
     from = at + needle.length;
   }
   els.responseBody.append(document.createTextNode(text.slice(from)));
-  els.respFindCount.textContent = count ? `${count} 处` : '未找到';
+  els.respFindCount.textContent = count ? `1/${count}` : '未找到';
   if (first) first.scrollIntoView({ block: 'center' });
 }
 
-function jumpRespMatch() {
+function jumpRespMatch(delta) {
   const marks = [...els.responseBody.querySelectorAll('mark')];
-  if (!marks.length) return;
-  respMatchIndex = (respMatchIndex + 1) % marks.length;
+  if (!marks.length) {
+    els.respFindCount.textContent = els.respFind.value.trim() ? '未找到' : '';
+    return;
+  }
+  respMatchIndex = (respMatchIndex + delta + marks.length) % marks.length;
   marks[respMatchIndex].scrollIntoView({ block: 'center' });
   els.respFindCount.textContent = `${respMatchIndex + 1}/${marks.length}`;
 }
 
-function findInBody() {
+let bodyMatchIndex = -1;
+
+function bodyMatches(query) {
+  const needle = query.toLowerCase();
+  const haystack = els.body.value.toLowerCase();
+  const hits = [];
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) hits.push(at);
+  return hits;
+}
+
+// Focus stays in the find box so Enter keeps advancing; the textarea keeps the
+// selection, which is what shows the match (same split Postman uses).
+function gotoBodyMatch(delta, reset = false) {
   const query = els.bodyFind.value.trim();
   if (!query) {
     els.bodyFindCount.textContent = '';
+    bodyMatchIndex = -1;
     return;
   }
-  const text = els.body.value;
-  const haystack = text.toLowerCase();
-  const needle = query.toLowerCase();
-  let total = 0;
-  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) total += 1;
-  if (!total) {
+  const hits = bodyMatches(query);
+  if (!hits.length) {
     els.bodyFindCount.textContent = '未找到';
+    bodyMatchIndex = -1;
     return;
   }
-  const caret = els.body.selectionEnd || 0;
-  let at = haystack.indexOf(needle, caret);
-  if (at === -1) at = haystack.indexOf(needle);
+  if (reset || bodyMatchIndex < 0) bodyMatchIndex = 0;
+  else bodyMatchIndex = (bodyMatchIndex + delta + hits.length) % hits.length;
+
+  const at = hits[bodyMatchIndex];
   els.body.focus();
-  els.body.setSelectionRange(at, at + needle.length);
-  const ordinal = text.slice(0, at).toLowerCase().split(needle).length;
-  els.bodyFindCount.textContent = `${ordinal}/${total}`;
+  els.body.setSelectionRange(at, at + query.length);
+  els.bodyFind.focus();
+  els.bodyFindCount.textContent = `${bodyMatchIndex + 1}/${hits.length}`;
 }
 
 async function send() {
@@ -878,15 +896,35 @@ els.respFind.addEventListener('input', () => {
   respMatchIndex = 0;
   renderResponseBody();
 });
-els.bodyFind.addEventListener('input', findInBody);
-els.respFind.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') { event.preventDefault(); jumpRespMatch(); }
-  if (event.key === 'Escape') { els.respFind.value = ''; renderResponseBody(); }
+els.bodyFind.addEventListener('input', () => {
+  bodyMatchIndex = -1;
+  gotoBodyMatch(0, true);
 });
 els.bodyFind.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') { event.preventDefault(); findInBody(); }
-  if (event.key === 'Escape') { els.bodyFind.value = ''; findInBody(); }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    gotoBodyMatch(event.shiftKey ? -1 : 1);
+  }
+  if (event.key === 'Escape') {
+    els.bodyFind.value = '';
+    els.bodyFindCount.textContent = '';
+    bodyMatchIndex = -1;
+  }
 });
+els.respFind.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    jumpRespMatch(event.shiftKey ? -1 : 1);
+  }
+  if (event.key === 'Escape') {
+    els.respFind.value = '';
+    renderResponseBody();
+  }
+});
+els.bodyFindNext.addEventListener('click', () => gotoBodyMatch(1));
+els.bodyFindPrev.addEventListener('click', () => gotoBodyMatch(-1));
+els.respFindNext.addEventListener('click', () => jumpRespMatch(1));
+els.respFindPrev.addEventListener('click', () => jumpRespMatch(-1));
 els.collSearch.addEventListener('input', () => {
   searchQuery = els.collSearch.value;
   renderCollections();
