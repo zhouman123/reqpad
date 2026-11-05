@@ -89,17 +89,47 @@ body {
 
 .collection { list-style: none; margin: 0; padding: 6px; }
 
-.collection .group {
+.coll-head, .folder-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px 4px;
+  gap: 5px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 5px 6px;
+  border-radius: 4px;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 700;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  text-align: left;
 }
+.coll-head:hover, .folder-head:hover { background: #f0f0f2; }
+.coll-head { color: #5c5c66; }
+.coll-head .count, .folder-head .count { color: var(--muted); font-weight: 500; margin-left: auto; padding-left: 6px; flex: none; }
+.coll-head .name, .folder-head .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caret {
+  flex: none;
+  width: 10px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 0.12s;
+}
+.open > .coll-head .caret,
+.open > .folder-head .caret { transform: rotate(90deg); }
+
+.coll-body { padding-left: 8px; }
+.folder { margin: 1px 0; }
+.folder-head { padding-left: 10px; font-weight: 600; }
+.folder-body { padding-left: 14px; }
 
 .collection .item {
   display: flex;
@@ -113,7 +143,6 @@ body {
 .collection .item:hover { background: #f0f0f2; }
 .collection .item .m { font-size: 10px; font-weight: 700; color: var(--muted); width: 40px; flex: none; }
 .collection .item .n { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.collection .item .n small { color: var(--muted); font-family: var(--mono); font-size: 11px; }
 .collection .empty { color: var(--muted); font-size: 12px; padding: 10px 8px; }
 
 

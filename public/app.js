@@ -25,6 +25,7 @@ const els = {
   pretty: document.getElementById('pretty'),
   copy: document.getElementById('copy'),
   collectionList: document.getElementById('collectionList'),
+  toggleAll: document.getElementById('toggleAll'),
   importBtn: document.getElementById('importBtn'),
   importFile: document.getElementById('importFile'),
   envSelect: document.getElementById('envSelect'),
@@ -548,6 +549,41 @@ function renderEnvSelect() {
   if (environments.some((env) => env.name === previous)) els.envSelect.value = previous;
 }
 
+// Collapse state is remembered per collection name and per collection|folder.
+const OPEN_COLLECTIONS_KEY = 'reqpad.openCollections';
+const CLOSED_FOLDERS_KEY = 'reqpad.closedFolders';
+
+function loadSet(key) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(key) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSet(key, set) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch {
+    // Storage may be unavailable; collapsing still works for this session.
+  }
+}
+
+let openCollections = loadSet(OPEN_COLLECTIONS_KEY);
+const closedFolders = loadSet(CLOSED_FOLDERS_KEY);
+
+function caret() {
+  const span = document.createElement('span');
+  span.className = 'caret';
+  span.textContent = '▶';
+  return span;
+}
+
+function updateToggleAll() {
+  const anyClosed = collections.some((collection) => !openCollections.has(collection.name));
+  els.toggleAll.textContent = anyClosed ? '展开' : '折叠';
+}
+
 function renderCollections() {
   els.collectionList.replaceChildren();
   if (!collections.length) {
@@ -555,12 +591,13 @@ function renderCollections() {
     li.className = 'empty';
     li.textContent = '还没有集合，点右上角「导入」选 Postman 导出的 JSON。';
     els.collectionList.append(li);
+    updateToggleAll();
     return;
   }
 
-  const addItem = (item) => {
-    const li = document.createElement('li');
-    li.className = 'item';
+  const itemRow = (item) => {
+    const row = document.createElement('div');
+    row.className = 'item';
     const method = document.createElement('span');
     method.className = 'm';
     method.textContent = item.method;
@@ -568,24 +605,41 @@ function renderCollections() {
     name.className = 'n';
     name.textContent = item.name;
     name.title = `${item.name}\n${item.url}`;
-    li.append(method, name);
-    li.addEventListener('click', () => applyItem(item));
-    els.collectionList.append(li);
-  };
-
-  const addGroup = (text, indent) => {
-    const li = document.createElement('li');
-    li.className = 'group';
-    if (indent) li.style.paddingLeft = '16px';
-    li.textContent = text;
-    els.collectionList.append(li);
+    row.append(method, name);
+    row.addEventListener('click', () => applyItem(item));
+    return row;
   };
 
   for (const collection of collections) {
-    addGroup(`${collection.name} · ${collection.items.length}`, false);
+    const collEl = document.createElement('li');
+    collEl.className = openCollections.has(collection.name) ? 'coll open' : 'coll';
 
-    // Group by folder first (folders sorted by name, which is how Postman
-    // numbers them), then the requests that sit outside any folder.
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'coll-head';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = collection.name;
+    const count = document.createElement('span');
+    count.className = 'count';
+    count.textContent = `· ${collection.items.length}`;
+    head.append(caret(), name, count);
+
+    const body = document.createElement('div');
+    body.className = collEl.classList.contains('open') ? 'coll-body' : 'coll-body hidden';
+
+    head.addEventListener('click', () => {
+      const open = !collEl.classList.contains('open');
+      collEl.classList.toggle('open', open);
+      body.classList.toggle('hidden', !open);
+      if (open) openCollections.add(collection.name);
+      else openCollections.delete(collection.name);
+      saveSet(OPEN_COLLECTIONS_KEY, openCollections);
+      updateToggleAll();
+    });
+
+    // Folders first (sorted by name, which is how Postman numbers them),
+    // then the requests that sit outside any folder.
     const folders = new Map();
     const loose = [];
     for (const item of collection.items) {
@@ -596,12 +650,46 @@ function renderCollections() {
       if (!folders.has(item.folder)) folders.set(item.folder, []);
       folders.get(item.folder).push(item);
     }
+
     for (const [folderName, items] of [...folders].sort((a, b) => a[0].localeCompare(b[0], 'zh'))) {
-      addGroup(`${folderName} · ${items.length}`, true);
-      for (const item of items) addItem(item);
+      const folderKey = `${collection.name}|${folderName}`;
+      const folderEl = document.createElement('div');
+      folderEl.className = closedFolders.has(folderKey) ? 'folder' : 'folder open';
+
+      const folderHead = document.createElement('button');
+      folderHead.type = 'button';
+      folderHead.className = 'folder-head';
+      const folderNameEl = document.createElement('span');
+      folderNameEl.className = 'name';
+      folderNameEl.textContent = folderName;
+      const folderCount = document.createElement('span');
+      folderCount.className = 'count';
+      folderCount.textContent = `· ${items.length}`;
+      folderHead.append(caret(), folderNameEl, folderCount);
+
+      const folderBody = document.createElement('div');
+      folderBody.className = folderEl.classList.contains('open') ? 'folder-body' : 'folder-body hidden';
+
+      folderHead.addEventListener('click', () => {
+        const open = !folderEl.classList.contains('open');
+        folderEl.classList.toggle('open', open);
+        folderBody.classList.toggle('hidden', !open);
+        if (open) closedFolders.delete(folderKey);
+        else closedFolders.add(folderKey);
+        saveSet(CLOSED_FOLDERS_KEY, closedFolders);
+      });
+
+      for (const item of items) folderBody.append(itemRow(item));
+      folderEl.append(folderHead, folderBody);
+      body.append(folderEl);
     }
-    for (const item of loose) addItem(item);
+    for (const item of loose) body.append(itemRow(item));
+
+    collEl.append(head, body);
+    els.collectionList.append(collEl);
   }
+
+  updateToggleAll();
 }
 
 async function refreshCollections() {
@@ -685,6 +773,15 @@ els.envSelect.addEventListener('change', () => {
   localStorage.setItem(ENV_KEY, els.envSelect.value);
 });
 els.importBtn.addEventListener('click', () => els.importFile.click());
+els.toggleAll.addEventListener('click', () => {
+  const anyClosed = collections.some((collection) => !openCollections.has(collection.name));
+  for (const collection of collections) {
+    if (anyClosed) openCollections.add(collection.name);
+    else openCollections.delete(collection.name);
+  }
+  saveSet(OPEN_COLLECTIONS_KEY, openCollections);
+  renderCollections();
+});
 els.importFile.addEventListener('change', async () => {
   if (!els.importFile.files?.length) return;
   await importFiles(els.importFile.files);
