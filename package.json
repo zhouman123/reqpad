@@ -1,0 +1,17 @@
+{
+  "name": "reqpad",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal local HTTP client: send a request, see the response, no CORS limits.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "echo": "node tools/echo-server.mjs",
+    "smoke": "node tools/cdp-smoke.mjs",
+    "smoke:params": "node tools/cdp-params.mjs"
+  }
+}

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>reqpad</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">reqpad</span>
+    <span class="hint">Ctrl / Cmd + Enter 发送 · 请求由本地 Node 发出，不受浏览器跨域限制</span>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <span>历史</span>
+        <button id="clearHistory" class="link-btn" type="button">清空</button>
+      </div>
+      <ul id="historyList" class="history"></ul>
+    </aside>
+
+    <main class="workspace">
+      <section class="request">
+        <div class="request-bar">
+          <select id="method" class="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+            <option>HEAD</option>
+            <option>OPTIONS</option>
+          </select>
+          <input id="url" class="url" type="text" spellcheck="false" placeholder="http://127.0.0.1:8080/api/xxx" />
+          <button id="send" class="send" type="button">Send</button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab" data-tab="params" type="button">Params <span id="paramCount" class="badge">0</span></button>
+          <button class="tab active" data-tab="headers" type="button">Headers <span id="headerCount" class="badge">0</span></button>
+          <button class="tab" data-tab="body" type="button">Body</button>
+        </div>
+
+        <div class="pane hidden" data-pane="params">
+          <div class="kv-head"><span>Key</span><span>Value</span><span></span></div>
+          <div id="paramRows" class="kv-rows"></div>
+          <button id="addParam" class="link-btn add" type="button">+ 添加一行</button>
+          <div class="pane-note">取消勾选的行不会拼进 URL，也就不会发出去。</div>
+        </div>
+
+        <div class="pane" data-pane="headers">
+          <div class="kv-head"><span>Key</span><span>Value</span><span></span></div>
+          <div id="headerRows" class="kv-rows"></div>
+          <button id="addHeader" class="link-btn add" type="button">+ 添加一行</button>
+        </div>
+
+        <div class="pane hidden" data-pane="body">
+          <div class="body-types">
+            <label><input type="radio" name="bodyType" value="none" checked /> none</label>
+            <label><input type="radio" name="bodyType" value="formdata" /> form-data</label>
+            <label><input type="radio" name="bodyType" value="urlencoded" /> x-www-form-urlencoded</label>
+            <label><input type="radio" name="bodyType" value="raw" /> raw</label>
+            <label><input type="radio" name="bodyType" value="binary" /> binary</label>
+          </div>
+
+          <div class="body-editor" data-body="none">
+            <div class="pane-note">这个请求不带 body。GET / HEAD 无论选哪种都不会发 body。</div>
+          </div>
+
+          <div class="body-editor hidden" data-body="formdata">
+            <div class="kv-head"><span>Key</span><span>Value</span><span>类型</span><span></span></div>
+            <div id="formRows" class="kv-rows"></div>
+            <button id="addForm" class="link-btn add" type="button">+ 添加一行</button>
+          </div>
+
+          <div class="body-editor hidden" data-body="urlencoded">
+            <div class="kv-head"><span>Key</span><span>Value</span><span></span></div>
+            <div id="urlRows" class="kv-rows"></div>
+            <button id="addUrlRow" class="link-btn add" type="button">+ 添加一行</button>
+          </div>
+
+          <div class="body-editor hidden" data-body="raw">
+            <div class="raw-bar">
+              <select id="rawFormat">
+                <option value="json">JSON</option>
+                <option value="text">Text</option>
+                <option value="xml">XML</option>
+                <option value="html">HTML</option>
+              </select>
+              <span id="rawHint" class="pane-note">未手写 Content-Type 时用 application/json</span>
+            </div>
+            <textarea id="body" class="body-input" spellcheck="false" placeholder='{"key": "value"}'></textarea>
+          </div>
+
+          <div class="body-editor hidden" data-body="binary">
+            <input id="binFile" type="file" />
+            <div id="binHint" class="pane-note">按文件原始字节发送，Content-Type 取文件类型。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="response">
+        <div class="response-head">
+          <span class="section-title">Response</span>
+          <span id="statusPill" class="pill idle">未发送</span>
+          <span id="meta" class="meta"></span>
+          <div class="spacer"></div>
+          <button id="pretty" class="link-btn" type="button" disabled>格式化 JSON</button>
+          <button id="copy" class="link-btn" type="button" disabled>复制响应</button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-rtab="body" type="button">Body</button>
+          <button class="tab" data-rtab="headers" type="button">Headers <span id="respHeaderCount" class="badge">0</span></button>
+        </div>
+
+        <div class="pane" data-rpane="body">
+          <pre id="responseBody" class="response-body">点 Send 发一条请求。</pre>
+        </div>
+        <div class="pane hidden" data-rpane="headers">
+          <pre id="responseHeaders" class="response-body"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
