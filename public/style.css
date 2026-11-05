@@ -287,6 +287,20 @@ body {
 
 .raw-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding-bottom: 8px; }
 .raw-bar .pane-note { min-width: 0; }
+
+.find {
+  width: 150px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 7px;
+  background: #fff;
+  color: var(--text);
+  font-family: inherit;
+}
+.find:focus { outline: 2px solid #ffd8c9; border-color: var(--accent); }
+.find-count { font-size: 11px; color: var(--muted); font-family: var(--mono); min-width: 42px; }
+.response-body mark { background: #ffe08a; color: inherit; border-radius: 2px; }
 .raw-bar select {
   font-family: var(--mono);
   font-size: 12px;

@@ -100,6 +100,8 @@
                 <option value="html">HTML</option>
               </select>
               <button id="beautify" class="link-btn" type="button">格式化</button>
+              <input id="bodyFind" class="find" type="search" placeholder="在入参里查找" spellcheck="false" />
+              <span id="bodyFindCount" class="find-count"></span>
               <span id="rawHint" class="pane-note">未手写 Content-Type 时用 application/json</span>
             </div>
             <textarea id="body" class="body-input" spellcheck="false" placeholder='{"key": "value"}'></textarea>
@@ -118,6 +120,8 @@
           <span id="statusPill" class="pill idle">未发送</span>
           <span id="meta" class="meta"></span>
           <div class="spacer"></div>
+          <input id="respFind" class="find" type="search" placeholder="在出参里查找" spellcheck="false" />
+          <span id="respFindCount" class="find-count"></span>
           <button id="pretty" class="link-btn" type="button" disabled>格式化 JSON</button>
           <button id="copy" class="link-btn" type="button" disabled>复制响应</button>
         </div>

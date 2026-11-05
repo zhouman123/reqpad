@@ -27,6 +27,10 @@ const els = {
   collectionList: document.getElementById('collectionList'),
   collSearch: document.getElementById('collSearch'),
   beautify: document.getElementById('beautify'),
+  bodyFind: document.getElementById('bodyFind'),
+  bodyFindCount: document.getElementById('bodyFindCount'),
+  respFind: document.getElementById('respFind'),
+  respFindCount: document.getElementById('respFindCount'),
   toggleAll: document.getElementById('toggleAll'),
   importBtn: document.getElementById('importBtn'),
   importFile: document.getElementById('importFile'),
@@ -429,11 +433,78 @@ function prettyJson(text) {
   }
 }
 
+let respMatchIndex = 0;
+
 function showBody(text) {
   lastResponseText = text;
-  els.responseBody.textContent = prettyOn ? prettyJson(text) : text;
   els.pretty.disabled = els.copy.disabled = false;
   els.pretty.textContent = prettyOn ? '原始响应' : '格式化 JSON';
+  respMatchIndex = 0;
+  renderResponseBody();
+}
+
+// Everything is inserted as text nodes, so a response containing markup is
+// still just text; only our own <mark> elements are real elements.
+function renderResponseBody() {
+  const text = prettyOn ? prettyJson(lastResponseText) : lastResponseText;
+  const query = els.respFind.value.trim();
+  els.responseBody.replaceChildren();
+  if (!query) {
+    els.responseBody.textContent = text;
+    els.respFindCount.textContent = '';
+    return;
+  }
+  const haystack = text.toLowerCase();
+  const needle = query.toLowerCase();
+  let from = 0;
+  let count = 0;
+  let first = null;
+  for (;;) {
+    const at = haystack.indexOf(needle, from);
+    if (at === -1) break;
+    if (at > from) els.responseBody.append(document.createTextNode(text.slice(from, at)));
+    const mark = document.createElement('mark');
+    mark.textContent = text.slice(at, at + needle.length);
+    els.responseBody.append(mark);
+    if (!first) first = mark;
+    count += 1;
+    from = at + needle.length;
+  }
+  els.responseBody.append(document.createTextNode(text.slice(from)));
+  els.respFindCount.textContent = count ? `${count} 处` : '未找到';
+  if (first) first.scrollIntoView({ block: 'center' });
+}
+
+function jumpRespMatch() {
+  const marks = [...els.responseBody.querySelectorAll('mark')];
+  if (!marks.length) return;
+  respMatchIndex = (respMatchIndex + 1) % marks.length;
+  marks[respMatchIndex].scrollIntoView({ block: 'center' });
+  els.respFindCount.textContent = `${respMatchIndex + 1}/${marks.length}`;
+}
+
+function findInBody() {
+  const query = els.bodyFind.value.trim();
+  if (!query) {
+    els.bodyFindCount.textContent = '';
+    return;
+  }
+  const text = els.body.value;
+  const haystack = text.toLowerCase();
+  const needle = query.toLowerCase();
+  let total = 0;
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) total += 1;
+  if (!total) {
+    els.bodyFindCount.textContent = '未找到';
+    return;
+  }
+  const caret = els.body.selectionEnd || 0;
+  let at = haystack.indexOf(needle, caret);
+  if (at === -1) at = haystack.indexOf(needle);
+  els.body.focus();
+  els.body.setSelectionRange(at, at + needle.length);
+  const ordinal = text.slice(0, at).toLowerCase().split(needle).length;
+  els.bodyFindCount.textContent = `${ordinal}/${total}`;
 }
 
 async function send() {
@@ -803,6 +874,19 @@ els.url.addEventListener('input', syncParamsFromUrl);
 els.envSelect.addEventListener('change', () => {
   localStorage.setItem(ENV_KEY, els.envSelect.value);
 });
+els.respFind.addEventListener('input', () => {
+  respMatchIndex = 0;
+  renderResponseBody();
+});
+els.bodyFind.addEventListener('input', findInBody);
+els.respFind.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); jumpRespMatch(); }
+  if (event.key === 'Escape') { els.respFind.value = ''; renderResponseBody(); }
+});
+els.bodyFind.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); findInBody(); }
+  if (event.key === 'Escape') { els.bodyFind.value = ''; findInBody(); }
+});
 els.collSearch.addEventListener('input', () => {
   searchQuery = els.collSearch.value;
   renderCollections();
@@ -863,6 +947,16 @@ document.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault();
     send();
+    return;
+  }
+  // Cmd/Ctrl+F searches wherever the cursor is: request body or response.
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    const focus = document.activeElement;
+    const inBodyPane = focus === els.body || Boolean(focus && focus.closest && focus.closest('[data-pane="body"]'));
+    const target = inBodyPane ? els.bodyFind : els.respFind;
+    target.focus();
+    target.select();
   }
 });
 
