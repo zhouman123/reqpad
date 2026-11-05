@@ -61,6 +61,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
         win.title = "reqpad"
+        // A shrunken window hides the whole UI, so keep it usable and always
+        // start at a sane size instead of whatever frame was last dragged to.
+        win.minSize = NSSize(width: 900, height: 560)
+        win.setContentSize(NSSize(width: 1180, height: 820))
         win.center()
         win.contentView = web
         win.delegate = self
