@@ -15,6 +15,8 @@
 
 * { box-sizing: border-box; }
 
+.hidden { display: none !important; }
+
 body {
   margin: 0;
   height: 100vh;
@@ -185,16 +187,31 @@ body {
 .pane-note { color: var(--muted); font-size: 11px; margin-top: 6px; }
 .pane-note code { background: #ececef; padding: 1px 4px; border-radius: 3px; }
 
-.body-types { display: flex; flex-wrap: wrap; gap: 8px 16px; padding-bottom: 10px; }
+.body-types { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 12px; }
 .body-types label {
   display: flex;
   align-items: center;
-  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
   font-size: 12px;
+  line-height: 1.6;
   cursor: pointer;
   white-space: nowrap;
+  background: #fff;
+  color: var(--muted);
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
 }
-.body-types input { margin: 0; accent-color: var(--accent); }
+.body-types label:hover { border-color: #c9c9cf; color: var(--text); }
+.body-types label.selected {
+  border-color: var(--accent);
+  background: #fff4ef;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+.body-types input { position: absolute; opacity: 0; pointer-events: none; }
+
+.body-editor { min-height: 0; }
 
 .raw-bar { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; }
 .raw-bar select {

@@ -213,11 +213,16 @@ function currentBodyType() {
 
 function setBodyType(type) {
   for (const radio of document.querySelectorAll('input[name="bodyType"]')) {
-    radio.checked = radio.value === type;
+    const active = radio.value === type;
+    radio.checked = active;
+    radio.closest('label')?.classList.toggle('selected', active);
   }
   for (const editor of document.querySelectorAll('[data-body]')) {
     editor.classList.toggle('hidden', editor.dataset.body !== type);
   }
+  // Postman shows one blank row; start each table that way instead of empty.
+  if (type === 'formdata' && !els.formRows.children.length) addFormRow();
+  if (type === 'urlencoded' && !els.urlRows.children.length) addTextRow(els.urlRows);
 }
 
 function readFileAsBase64(file) {
@@ -654,4 +659,5 @@ document.addEventListener('keydown', (event) => {
 addHeaderRow();
 syncHeaderCount();
 syncParamsFromUrl();
+setBodyType('none');
 refreshHistory();

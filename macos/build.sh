@@ -24,8 +24,15 @@ codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 echo "built: $APP"
 
 if [ "${1:-}" = "--install" ]; then
-  mkdir -p "$HOME/Applications"
-  rm -rf "$HOME/Applications/reqpad.app"
-  cp -R "$APP" "$HOME/Applications/"
-  echo "installed: $HOME/Applications/reqpad.app"
+  # Prefer the system-wide Applications folder so Launchpad/Finder find it;
+  # fall back to the per-user one when that is not writable.
+  if [ -w /Applications ]; then
+    DEST="/Applications"
+  else
+    DEST="$HOME/Applications"
+    mkdir -p "$DEST"
+  fi
+  rm -rf "$DEST/reqpad.app"
+  cp -R "$APP" "$DEST/"
+  echo "installed: $DEST/reqpad.app"
 fi
