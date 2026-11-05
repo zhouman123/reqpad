@@ -62,14 +62,64 @@ body {
 
 .sidebar-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--muted);
+  gap: 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border);
 }
+
+.stab {
+  border: 0;
+  background: none;
+  padding: 3px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.stab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+.side-body { overflow-y: auto; flex: 1; min-height: 0; }
+
+.env {
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: #fff;
+  color: var(--text);
+  max-width: 220px;
+}
+
+.collection { list-style: none; margin: 0; padding: 6px; }
+
+.collection .group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.collection .item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.collection .item:hover { background: #f0f0f2; }
+.collection .item .m { font-size: 10px; font-weight: 700; color: var(--muted); width: 40px; flex: none; }
+.collection .item .n { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.collection .item .n small { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.collection .empty { color: var(--muted); font-size: 12px; padding: 10px 8px; }
 
 .history { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
 

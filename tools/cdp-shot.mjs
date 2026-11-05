@@ -59,6 +59,7 @@ try {
   if (snippet) {
     const result = await call('Runtime.evaluate', { expression: snippet, awaitPromise: true, returnByValue: true });
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
+    if (result.result?.value !== undefined) console.log(JSON.stringify(result.result.value, null, 2));
   }
   await sleep(250);
 

@@ -20,6 +20,8 @@ const MAX_REQUEST_BYTES = 10 * 1024 * 1024;
 const HISTORY_FILE = join(homedir(), '.reqpad', 'history.json');
 const LEGACY_HISTORY_FILE = join(homedir(), '.postman-lite', 'history.json');
 const HISTORY_LIMIT = 50;
+const COLLECTIONS_FILE = join(homedir(), '.reqpad', 'collections.json');
+const ENVIRONMENTS_FILE = join(homedir(), '.reqpad', 'environments.json');
 
 // The macOS shell sets this: if the app is force-killed, the child is
 // reparented to launchd (ppid 1) and exits instead of lingering forever.
@@ -125,6 +127,204 @@ async function pushHistory(raw) {
   const trimmed = items.slice(0, HISTORY_LIMIT);
   await writeHistory(trimmed);
   return trimmed;
+}
+
+// ---- collections: imported from Postman, kept as a plain JSON file ----
+
+async function readJsonFile(file, fallback) {
+  try {
+    return JSON.parse(await readFile(file, 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+
+async function writeJsonFile(file, value) {
+  await mkdir(dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  await writeFile(tmp, JSON.stringify(value, null, 2));
+  await rename(tmp, file);
+}
+
+function headersFromList(list) {
+  const headers = {};
+  for (const row of list || []) {
+    if (!row || !row.key || row.disabled || row.enabled === false) continue;
+    headers[row.key] = row.value == null ? '' : String(row.value);
+  }
+  return headers;
+}
+
+function queryFromRows(rows) {
+  const query = new URLSearchParams();
+  for (const row of rows || []) {
+    if (!row || !row.key || row.disabled || row.enabled === false) continue;
+    query.append(row.key, row.value == null ? '' : String(row.value));
+  }
+  return query.toString();
+}
+
+function formRowsFrom(rows) {
+  return (rows || [])
+    .filter((row) => row && row.key)
+    .map((row) => ({ key: row.key, type: row.type === 'file' ? 'file' : 'text', value: row.value == null ? '' : String(row.value) }));
+}
+
+function fromBackupRequest(request, folderName) {
+  const mode = request.dataMode || 'none';
+  let bodyType = 'none';
+  let body = '';
+  let form = [];
+  if (mode === 'raw') {
+    bodyType = 'raw';
+    body = request.rawModeData || '';
+  } else if (mode === 'urlencoded') {
+    bodyType = 'urlencoded';
+    body = queryFromRows(request.data);
+  } else if (mode === 'params') {
+    bodyType = 'formdata';
+    form = formRowsFrom(request.data);
+  }
+  return {
+    id: String(request.id || `${request.name}-${Math.random().toString(16).slice(2, 8)}`),
+    name: request.name || '(unnamed)',
+    method: String(request.method || 'GET').toUpperCase(),
+    url: typeof request.url === 'string' ? request.url : (request.url?.raw || ''),
+    headers: headersFromList(request.headerData),
+    bodyType,
+    body,
+    form,
+    folder: folderName || '',
+  };
+}
+
+function fromV2Request(node, folderName) {
+  const request = node.request || {};
+  const body = request.body || {};
+  let bodyType = 'none';
+  let text = '';
+  let form = [];
+  if (body.mode === 'raw') {
+    bodyType = 'raw';
+    text = body.raw || '';
+  } else if (body.mode === 'urlencoded') {
+    bodyType = 'urlencoded';
+    text = queryFromRows(body.urlencoded);
+  } else if (body.mode === 'formdata') {
+    bodyType = 'formdata';
+    form = formRowsFrom(body.formdata);
+  }
+  return {
+    id: String(node.id || `${node.name}-${Math.random().toString(16).slice(2, 8)}`),
+    name: node.name || '(unnamed)',
+    method: String(request.method || 'GET').toUpperCase(),
+    url: typeof request.url === 'string' ? request.url : (request.url?.raw || ''),
+    headers: headersFromList(request.header),
+    bodyType,
+    body: text,
+    form,
+    folder: folderName || '',
+  };
+}
+
+// Accepts both a Postman app backup and a standard v2.x collection export.
+function parsePostman(data) {
+  const collections = [];
+  const environments = [];
+
+  if (data && Array.isArray(data.collections)) {
+    for (const collection of data.collections) {
+      const folderNames = new Map((collection.folders || []).map((folder) => [folder.id, folder.name]));
+      collections.push({
+        id: String(collection.id || collection.name),
+        name: collection.name || '(unnamed)',
+        items: (collection.requests || []).map((request) => fromBackupRequest(request, folderNames.get(request.folder) || '')),
+      });
+    }
+    for (const environment of data.environments || []) {
+      const values = {};
+      for (const row of environment.values || []) {
+        if (row && row.key) values[row.key] = row.value == null ? '' : String(row.value);
+      }
+      environments.push({ name: environment.name || '(unnamed)', values });
+    }
+    return { collections, environments };
+  }
+
+  if (data && Array.isArray(data.item)) {
+    const items = [];
+    const walk = (nodes, folder) => {
+      for (const node of nodes || []) {
+        if (Array.isArray(node.item)) {
+          walk(node.item, folder ? `${folder} / ${node.name}` : String(node.name || ''));
+        } else if (node.request) {
+          items.push(fromV2Request(node, folder));
+        }
+      }
+    };
+    walk(data.item, '');
+    collections.push({
+      id: String(data.info?.postman_id || data.info?.name || 'imported'),
+      name: data.info?.name || 'Imported collection',
+      items,
+    });
+    if (Array.isArray(data.variable) && data.variable.length) {
+      const values = {};
+      for (const row of data.variable) {
+        if (row && row.key) values[row.key] = row.value == null ? '' : String(row.value);
+      }
+      environments.push({ name: `${collections[0].name} variables`, values });
+    }
+    return { collections, environments };
+  }
+
+  throw new Error('unrecognized JSON: expected a Postman backup or a v2.x collection export');
+}
+
+async function importPostman(data) {
+  const parsed = parsePostman(data);
+
+  const store = await readJsonFile(COLLECTIONS_FILE, { collections: [] });
+  const byName = new Map((store.collections || []).map((collection) => [collection.name, collection]));
+  let addedItems = 0;
+
+  for (const incoming of parsed.collections) {
+    const existing = byName.get(incoming.name);
+    if (!existing) {
+      store.collections.push(incoming);
+      byName.set(incoming.name, incoming);
+      addedItems += incoming.items.length;
+      continue;
+    }
+    // Same collection again: add only requests we do not already have.
+    const seen = new Set(existing.items.map((item) => `${item.name}|${item.method}|${item.url}`));
+    for (const item of incoming.items) {
+      const key = `${item.name}|${item.method}|${item.url}`;
+      if (seen.has(key)) continue;
+      existing.items.push(item);
+      seen.add(key);
+      addedItems += 1;
+    }
+  }
+  await writeJsonFile(COLLECTIONS_FILE, store);
+
+  const envStore = await readJsonFile(ENVIRONMENTS_FILE, { environments: [] });
+  const envNames = new Set((envStore.environments || []).map((environment) => environment.name));
+  let addedEnvironments = 0;
+  for (const environment of parsed.environments) {
+    if (envNames.has(environment.name)) continue;
+    envStore.environments.push(environment);
+    envNames.add(environment.name);
+    addedEnvironments += 1;
+  }
+  await writeJsonFile(ENVIRONMENTS_FILE, envStore);
+
+  return {
+    collections: store.collections,
+    environments: envStore.environments,
+    addedItems,
+    addedEnvironments,
+  };
 }
 
 // One hop, no redirect handling: returns the raw response so the caller
@@ -375,6 +575,35 @@ const server = createServer(async (req, res) => {
       if (req.method === 'DELETE') {
         await writeHistory([]);
         sendJson(res, 200, { items: [] });
+        return;
+      }
+      sendJson(res, 405, { error: 'method not allowed' });
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
+    }
+    return;
+  }
+  if (req.url === '/api/collections/import' && req.method === 'POST') {
+    try {
+      const payload = JSON.parse((await readRequestBody(req)).toString('utf8') || '{}');
+      sendJson(res, 200, await importPostman(payload.data));
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
+    }
+    return;
+  }
+  if (req.url === '/api/collections') {
+    try {
+      if (req.method === 'GET') {
+        const store = await readJsonFile(COLLECTIONS_FILE, { collections: [] });
+        const envStore = await readJsonFile(ENVIRONMENTS_FILE, { environments: [] });
+        sendJson(res, 200, { collections: store.collections || [], environments: envStore.environments || [] });
+        return;
+      }
+      if (req.method === 'DELETE') {
+        await writeJsonFile(COLLECTIONS_FILE, { collections: [] });
+        await writeJsonFile(ENVIRONMENTS_FILE, { environments: [] });
+        sendJson(res, 200, { collections: [], environments: [] });
         return;
       }
       sendJson(res, 405, { error: 'method not allowed' });

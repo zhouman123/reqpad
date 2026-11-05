@@ -26,6 +26,10 @@ const els = {
   copy: document.getElementById('copy'),
   historyList: document.getElementById('historyList'),
   clearHistory: document.getElementById('clearHistory'),
+  collectionList: document.getElementById('collectionList'),
+  importBtn: document.getElementById('importBtn'),
+  importFile: document.getElementById('importFile'),
+  envSelect: document.getElementById('envSelect'),
 };
 
 const HISTORY_KEY = 'reqpad.history';
@@ -456,11 +460,20 @@ async function send() {
   try {
     const bodyPayload = await collectBody();
     applyAutoContentType(headers, bodyPayload);
+    const payload = applyVars({ method, url, headers, ...bodyPayload, followRedirects: true });
+
+    const unresolved = [...new Set((payload.url.match(/\{\{[^}]+\}\}/g) || []))];
+    if (unresolved.length) {
+      els.statusPill.className = 'pill error';
+      els.statusPill.textContent = '变量未定义';
+      showBody(`这些变量没有值：${unresolved.join('、')}\n\n右上角切一个变量环境，或者直接在 URL 里写死。`);
+      return;
+    }
 
     const res = await fetch('/api/send', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ method, url, headers, ...bodyPayload, followRedirects: true }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -607,6 +620,162 @@ function renderHistory() {
   }
 }
 
+/* ---------- collections + variables ---------- */
+
+let collections = [];
+let environments = [];
+const ENV_KEY = 'reqpad.env';
+
+function currentEnvValues() {
+  const name = els.envSelect.value;
+  const found = environments.find((env) => env.name === name);
+  return found ? found.values : {};
+}
+
+function substituteVars(text) {
+  const values = currentEnvValues();
+  return String(text ?? '').replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, key) => (
+    Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match
+  ));
+}
+
+function applyVars(payload) {
+  payload.url = substituteVars(payload.url);
+  const headers = {};
+  for (const [key, value] of Object.entries(payload.headers)) headers[key] = substituteVars(value);
+  payload.headers = headers;
+  if (typeof payload.body === 'string') payload.body = substituteVars(payload.body);
+  if (Array.isArray(payload.form)) {
+    payload.form = payload.form.map((row) => ({ ...row, value: substituteVars(row.value) }));
+  }
+  return payload;
+}
+
+function renderEnvSelect() {
+  const previous = localStorage.getItem(ENV_KEY) || '';
+  els.envSelect.replaceChildren();
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = environments.length ? '变量: 不替换' : '变量: 无';
+  els.envSelect.append(none);
+  for (const env of environments) {
+    const option = document.createElement('option');
+    option.value = env.name;
+    option.textContent = `${env.name} (${Object.keys(env.values || {}).length})`;
+    els.envSelect.append(option);
+  }
+  if (environments.some((env) => env.name === previous)) els.envSelect.value = previous;
+}
+
+function renderCollections() {
+  els.collectionList.replaceChildren();
+  if (!collections.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = '还没有集合，点右上角「导入」选 Postman 导出的 JSON。';
+    els.collectionList.append(li);
+    return;
+  }
+  for (const collection of collections) {
+    const head = document.createElement('li');
+    head.className = 'group';
+    head.textContent = `${collection.name} · ${collection.items.length}`;
+    els.collectionList.append(head);
+
+    let lastFolder = null;
+    for (const item of collection.items) {
+      if (item.folder && item.folder !== lastFolder) {
+        const folder = document.createElement('li');
+        folder.className = 'group';
+        folder.style.paddingLeft = '16px';
+        folder.textContent = item.folder;
+        els.collectionList.append(folder);
+        lastFolder = item.folder;
+      }
+      const li = document.createElement('li');
+      li.className = 'item';
+      const method = document.createElement('span');
+      method.className = 'm';
+      method.textContent = item.method;
+      const name = document.createElement('span');
+      name.className = 'n';
+      name.textContent = item.name;
+      name.title = `${item.name}\n${item.url}`;
+      li.append(method, name);
+      li.addEventListener('click', () => applyItem(item));
+      els.collectionList.append(li);
+    }
+  }
+}
+
+async function refreshCollections() {
+  try {
+    const res = await fetch('/api/collections');
+    if (!res.ok) return;
+    const data = await res.json();
+    collections = Array.isArray(data.collections) ? data.collections : [];
+    environments = Array.isArray(data.environments) ? data.environments : [];
+    renderEnvSelect();
+    renderCollections();
+  } catch {
+    // No backend: collections stay empty, history still works from localStorage.
+  }
+}
+
+function applyItem(item) {
+  els.method.value = item.method || 'GET';
+  els.url.value = item.url || '';
+  syncParamsFromUrl();
+
+  els.headerRows.replaceChildren();
+  const headers = Object.entries(item.headers || {});
+  if (headers.length) for (const [k, v] of headers) addHeaderRow(k, v);
+  else addHeaderRow();
+  syncHeaderCount();
+
+  els.body.value = item.body || '';
+  setBodyType(item.bodyType || 'none');
+  els.formRows.replaceChildren();
+  if ((item.bodyType || 'none') === 'formdata') {
+    for (const row of item.form || []) addFormRow(row.key, row.value || '', row.type || 'text');
+    if (!els.formRows.children.length) addFormRow();
+  }
+  els.urlRows.replaceChildren();
+  if (item.bodyType === 'urlencoded') {
+    for (const [k, v] of new URLSearchParams(item.body || '')) addTextRow(els.urlRows, k, v);
+    if (!els.urlRows.children.length) addTextRow(els.urlRows);
+  }
+  els.binFile.value = '';
+}
+
+async function importFiles(fileList) {
+  const files = [...fileList];
+  let added = 0;
+  let envAdded = 0;
+  const errors = [];
+  for (const file of files) {
+    try {
+      const data = JSON.parse(await file.text());
+      const res = await fetch('/api/collections/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ data }),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      added += result.addedItems || 0;
+      envAdded += result.addedEnvironments || 0;
+    } catch (error) {
+      errors.push(`${file.name}: ${error.message}`);
+    }
+  }
+  await refreshCollections();
+  const summary = `导入完成：新增 ${added} 个请求、${envAdded} 个环境`;
+  els.meta.textContent = summary;
+  if (errors.length) showBody(`${summary}\n\n失败：\n${errors.join('\n')}`);
+  else showBody(`${summary}`);
+}
+
 /* ---------- wiring ---------- */
 
 els.addHeader.addEventListener('click', () => addHeaderRow());
@@ -616,6 +785,24 @@ els.addParam.addEventListener('click', () => {
   row.querySelectorAll('input')[1].focus();
 });
 els.url.addEventListener('input', syncParamsFromUrl);
+els.envSelect.addEventListener('change', () => {
+  localStorage.setItem(ENV_KEY, els.envSelect.value);
+});
+els.importBtn.addEventListener('click', () => els.importFile.click());
+els.importFile.addEventListener('change', async () => {
+  if (!els.importFile.files?.length) return;
+  await importFiles(els.importFile.files);
+  els.importFile.value = '';
+});
+for (const tab of document.querySelectorAll('.stab')) {
+  tab.addEventListener('click', () => {
+    for (const other of document.querySelectorAll('.stab')) other.classList.toggle('active', other === tab);
+    for (const pane of document.querySelectorAll('[data-side-pane]')) {
+      pane.classList.toggle('hidden', pane.dataset.sidePane !== tab.dataset.side);
+    }
+    els.clearHistory.classList.toggle('hidden', tab.dataset.side !== 'history');
+  });
+}
 for (const radio of document.querySelectorAll('input[name="bodyType"]')) {
   radio.addEventListener('change', () => setBodyType(currentBodyType()));
 }
@@ -660,4 +847,5 @@ addHeaderRow();
 syncHeaderCount();
 syncParamsFromUrl();
 setBodyType('none');
+refreshCollections();
 refreshHistory();

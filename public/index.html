@@ -10,15 +10,26 @@
   <header class="topbar">
     <span class="brand">reqpad</span>
     <span class="hint">Ctrl / Cmd + Enter 发送 · 请求由本地 Node 发出，不受浏览器跨域限制</span>
+    <span class="spacer"></span>
+    <select id="envSelect" class="env" title="变量环境（{{name}} 会按它替换）"></select>
   </header>
 
   <div class="layout">
     <aside class="sidebar">
       <div class="sidebar-head">
-        <span>历史</span>
-        <button id="clearHistory" class="link-btn" type="button">清空</button>
+        <button class="stab active" data-side="collections" type="button">集合</button>
+        <button class="stab" data-side="history" type="button">历史</button>
+        <span class="spacer"></span>
+        <button id="importBtn" class="link-btn" type="button">导入</button>
+        <button id="clearHistory" class="link-btn hidden" type="button">清空</button>
       </div>
-      <ul id="historyList" class="history"></ul>
+      <input id="importFile" type="file" accept=".json,application/json" multiple hidden />
+      <div class="side-body" data-side-pane="collections">
+        <ul id="collectionList" class="collection"></ul>
+      </div>
+      <div class="side-body hidden" data-side-pane="history">
+        <ul id="historyList" class="history"></ul>
+      </div>
     </aside>
 
     <main class="workspace">

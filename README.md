@@ -49,6 +49,9 @@ Windows 双击 `start.bat`；macOS 双击 `start.command`（首次可能要在�
   - `binary` — 单个文件按原始字节发
 
   GET / HEAD 无论选哪种都不发 body；手写了 Content-Type 就以你写的为准。
+- 左侧历史/集合两个标签页：历史存最近 50 条；集合点一条直接回填方法、URL、Headers、Body。
+- **导入**：支持 Postman 的 `backup-*.json`（App 内自动备份）和标准 `.postman_collection.json`（v2.x 导出），
+  同集合重复导入只补新请求。环境变量一并导入，右上角可选，`{{baseUrl}}` 这类占位符发送前替换。
 - 响应区：状态码（带颜色）、耗时、大小、跳转次数；Body 自动美化 JSON，可切原始文本；Headers 看原始响应头。
 - 左侧历史：最近 50 条，同 method+url 只留一条，点一条回填。
 
@@ -81,6 +84,7 @@ Body raw(XML)     -> 服务端收到 <a>1</a> + application/xml
 Body form-data    -> 服务端收到 multipart，含 name="name" 与 boundary
 Body binary       -> content-length 与文件字节数一致
 Body GET+body     -> 服务端收不到 body，残留 content-length 被清掉
+导入 Postman 备份（2 份）                  -> 18 集合 / 71 请求 / 2 环境，点击可回填
 历史写入后重启进程                        -> 仍然读得到（落盘，不在内存）
 macOS 应用正常退出                         -> 无残留 node 子进程
 ```
@@ -95,6 +99,8 @@ macos/build.sh          编译并可选安装到 ~/Applications
 tools/echo-server.mjs   本地靶子（/echo /redirect /gzip /slow）
 tools/cdp-smoke.mjs     无头浏览器点一次 Send 的端到端冒烟
 tools/cdp-params.mjs    Params 表的端到端检查
+tools/cdp-body.mjs      Body 五种类型的端到端检查
+tools/cdp-shot.mjs      跑一段 JS 后截图，用于 UI 验收
 tools/asar.mjs          只读 asar 解析（分析 Electron 应用时顺手写的，与本项目无关）
 ```
 
