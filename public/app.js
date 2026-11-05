@@ -25,6 +25,8 @@ const els = {
   pretty: document.getElementById('pretty'),
   copy: document.getElementById('copy'),
   collectionList: document.getElementById('collectionList'),
+  collSearch: document.getElementById('collSearch'),
+  beautify: document.getElementById('beautify'),
   toggleAll: document.getElementById('toggleAll'),
   importBtn: document.getElementById('importBtn'),
   importFile: document.getElementById('importFile'),
@@ -570,6 +572,7 @@ function saveSet(key, set) {
 }
 
 let openCollections = loadSet(OPEN_COLLECTIONS_KEY);
+let searchQuery = '';
 const closedFolders = loadSet(CLOSED_FOLDERS_KEY);
 
 function caret() {
@@ -586,6 +589,8 @@ function updateToggleAll() {
 
 function renderCollections() {
   els.collectionList.replaceChildren();
+  const query = searchQuery.trim().toLowerCase();
+
   if (!collections.length) {
     const li = document.createElement('li');
     li.className = 'empty';
@@ -610,9 +615,32 @@ function renderCollections() {
     return row;
   };
 
+  // While searching the tree is flattened: only matches, always expanded.
+  const view = [];
   for (const collection of collections) {
+    const nameHit = collection.name.toLowerCase().includes(query);
+    const items = !query || nameHit
+      ? collection.items
+      : collection.items.filter((item) => item.name.toLowerCase().includes(query)
+        || item.url.toLowerCase().includes(query)
+        || item.method.toLowerCase().includes(query)
+        || (item.folder || '').toLowerCase().includes(query));
+    if (!query || nameHit || items.length) view.push({ collection, items });
+  }
+
+  if (query && !view.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = `没有匹配「${searchQuery.trim()}」的集合或请求。`;
+    els.collectionList.append(li);
+    updateToggleAll();
+    return;
+  }
+
+  for (const { collection, items: collectionItems } of view) {
     const collEl = document.createElement('li');
-    collEl.className = openCollections.has(collection.name) ? 'coll open' : 'coll';
+    const collOpen = Boolean(query) || openCollections.has(collection.name);
+    collEl.className = collOpen ? 'coll open' : 'coll';
 
     const head = document.createElement('button');
     head.type = 'button';
@@ -622,8 +650,9 @@ function renderCollections() {
     name.textContent = collection.name;
     const count = document.createElement('span');
     count.className = 'count';
-    count.textContent = `· ${collection.items.length}`;
-    head.append(caret(), name, count);
+    count.textContent = `· ${collectionItems.length}`;
+    if (query) head.append(name, count);
+    else head.append(caret(), name, count);
 
     const body = document.createElement('div');
     body.className = collEl.classList.contains('open') ? 'coll-body' : 'coll-body hidden';
@@ -642,7 +671,7 @@ function renderCollections() {
     // then the requests that sit outside any folder.
     const folders = new Map();
     const loose = [];
-    for (const item of collection.items) {
+    for (const item of collectionItems) {
       if (!item.folder) {
         loose.push(item);
         continue;
@@ -654,7 +683,8 @@ function renderCollections() {
     for (const [folderName, items] of [...folders].sort((a, b) => a[0].localeCompare(b[0], 'zh'))) {
       const folderKey = `${collection.name}|${folderName}`;
       const folderEl = document.createElement('div');
-      folderEl.className = closedFolders.has(folderKey) ? 'folder' : 'folder open';
+      const folderOpen = Boolean(query) || !closedFolders.has(folderKey);
+      folderEl.className = folderOpen ? 'folder open' : 'folder';
 
       const folderHead = document.createElement('button');
       folderHead.type = 'button';
@@ -665,7 +695,8 @@ function renderCollections() {
       const folderCount = document.createElement('span');
       folderCount.className = 'count';
       folderCount.textContent = `· ${items.length}`;
-      folderHead.append(caret(), folderNameEl, folderCount);
+      if (query) folderHead.append(folderNameEl, folderCount);
+      else folderHead.append(caret(), folderNameEl, folderCount);
 
       const folderBody = document.createElement('div');
       folderBody.className = folderEl.classList.contains('open') ? 'folder-body' : 'folder-body hidden';
@@ -771,6 +802,24 @@ els.addParam.addEventListener('click', () => {
 els.url.addEventListener('input', syncParamsFromUrl);
 els.envSelect.addEventListener('change', () => {
   localStorage.setItem(ENV_KEY, els.envSelect.value);
+});
+els.collSearch.addEventListener('input', () => {
+  searchQuery = els.collSearch.value;
+  renderCollections();
+});
+els.beautify.addEventListener('click', () => {
+  if (els.rawFormat.value !== 'json') {
+    els.rawHint.textContent = '只有 JSON 支持格式化';
+    return;
+  }
+  const text = els.body.value.trim();
+  if (!text) return;
+  try {
+    els.body.value = JSON.stringify(JSON.parse(text), null, 2);
+    setRawHint();
+  } catch (error) {
+    els.rawHint.textContent = `JSON 解析失败：${error.message}`;
+  }
 });
 els.importBtn.addEventListener('click', () => els.importFile.click());
 els.toggleAll.addEventListener('click', () => {

@@ -22,6 +22,9 @@
         <button id="toggleAll" class="link-btn" type="button">展开</button>
         <button id="importBtn" class="link-btn" type="button">导入</button>
       </div>
+      <div class="search-wrap">
+        <input id="collSearch" class="search" type="search" placeholder="搜索集合 / 请求" spellcheck="false" />
+      </div>
       <input id="importFile" type="file" accept=".json,application/json" multiple hidden />
       <div class="side-body">
         <ul id="collectionList" class="collection"></ul>
@@ -96,6 +99,7 @@
                 <option value="xml">XML</option>
                 <option value="html">HTML</option>
               </select>
+              <button id="beautify" class="link-btn" type="button">格式化</button>
               <span id="rawHint" class="pane-note">未手写 Content-Type 时用 application/json</span>
             </div>
             <textarea id="body" class="body-input" spellcheck="false" placeholder='{"key": "value"}'></textarea>

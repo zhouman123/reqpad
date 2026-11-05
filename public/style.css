@@ -77,6 +77,19 @@ body {
 
 .side-body { overflow-y: auto; flex: 1; min-height: 0; }
 
+.search-wrap { padding: 6px 8px 0; }
+.search {
+  width: 100%;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  background: #fff;
+  color: var(--text);
+  font-family: inherit;
+}
+.search:focus { outline: 2px solid #ffd8c9; border-color: var(--accent); }
+
 .env {
   font-size: 12px;
   border: 1px solid var(--border);
@@ -272,7 +285,8 @@ body {
 
 .body-editor { min-height: 0; }
 
-.raw-bar { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; }
+.raw-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding-bottom: 8px; }
+.raw-bar .pane-note { min-width: 0; }
 .raw-bar select {
   font-family: var(--mono);
   font-size: 12px;
@@ -357,5 +371,6 @@ body {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   color: #24242a;
 }
